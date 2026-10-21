@@ -1,0 +1,21 @@
+# Local environment files; keep the example template tracked.
+.env
+.env.*
+!.env.example
+.inv
+.inv.*
+*.inv
+
+# Python environments and generated files
+.venv/
+.venv*/
+backend/backups/
+frontend/public/.env
+frontend/public/.env.*
+frontend/public/*.inv
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+__pycache__/
+*.py[cod]

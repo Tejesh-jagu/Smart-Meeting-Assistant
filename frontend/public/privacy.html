@@ -1,0 +1,56 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Privacy information for the local Smart Meeting Assistant application." />
+  <meta name="theme-color" content="#185657" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/legal.css" />
+  <title>Privacy Policy | Smart Meeting Assistant</title>
+</head>
+<body>
+  <main class="legal-shell">
+    <nav class="legal-nav" aria-label="Main navigation">
+      <a href="/">Smart Meeting Assistant</a>
+      <a href="/terms.html">Terms and Conditions</a>
+    </nav>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Draft for local evaluation. Updated October 19, 2026.</p>
+    <aside class="draft-notice" aria-label="Draft notice">
+      <strong>Draft notice</strong>
+      <p>Before public use, the operator must add its legal name and contact details, specify the applicable jurisdiction, set backup retention rules, and review this notice for the actual hosting setup.</p>
+    </aside>
+
+    <h2>Who operates this application</h2>
+    <p>The operator's legal identity and privacy contact have not been provided for this local draft. Both details must be supplied and verified before public release.</p>
+
+    <h2>Information handled by the application</h2>
+    <p>The application processes meeting transcripts that you type or obtain from an audio recording, and the reports generated from those transcripts. It does not require an account in this version.</p>
+
+    <h2>Audio recording and transcription</h2>
+    <p>When you record in the browser, the recording is held in the browser for preview until you choose to transcribe it. When you upload or submit a recording, the backend writes a temporary audio file and uses its configured faster-whisper model to create a transcript. The backend attempts to remove that temporary file after processing, including when processing fails. The application code does not send audio to a separate hosted transcription service.</p>
+
+    <h2>Meeting reports and model processing</h2>
+    <p>When you request a report, the backend sends the transcript to the Ollama service at the configured <code>OLLAMA_BASE_URL</code>. The default address is <code>http://localhost:11434</code>. If the operator changes this setting to a remote host, that host receives the transcript and its own privacy and retention practices apply.</p>
+
+    <h2>Storage, deletion, and backups</h2>
+    <p>Transcripts and generated reports are stored in the PostgreSQL database configured by the operator. They remain there until a user deletes the meeting or a database administrator removes it. Deleting a meeting also deletes its linked report. Separately created database backups may continue to contain deleted records until those backups are removed under the operator's backup retention process. This local build does not define an automatic backup retention period.</p>
+
+    <h2>Access and security</h2>
+    <p>This version has no sign-in or user-level access control. Anyone who can reach its API can view, change, or delete saved meetings. Keep the backend on the local machine or a private network and do not expose it to the public internet. The operator is responsible for protecting the database, machine, network, and any backups.</p>
+
+    <h2>Cookies and analytics</h2>
+    <p>The current frontend does not set cookies or load analytics or advertising tracking scripts. This statement describes the application code and may not cover services added by an operator or hosting provider.</p>
+
+    <h2>Contact</h2>
+    <p>A privacy contact method has not been provided for this local draft.</p>
+
+    <footer class="legal-footer">
+      <span>&copy; <span data-current-year></span> Smart Meeting Assistant</span>
+      <a href="/">Return to the application</a>
+    </footer>
+  </main>
+  <script>document.querySelectorAll('[data-current-year]').forEach((node) => { node.textContent = new Date().getFullYear() })</script>
+</body>
+</html>

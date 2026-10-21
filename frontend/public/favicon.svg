@@ -1,0 +1,6 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Smart Meeting Assistant">
+  <rect width="48" height="48" rx="6" fill="#185657"/>
+  <path d="M14 13h20v22H14z" fill="#fff"/>
+  <path d="M18 19h12M18 23h7" fill="none" stroke="#185657" stroke-linecap="square" stroke-width="2"/>
+  <path d="M18 29v-2m4 5v-8m4 7v-5m4 5v-9" fill="none" stroke="#185657" stroke-linecap="square" stroke-width="2"/>
+</svg>

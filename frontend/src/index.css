@@ -1,0 +1,117 @@
+:root {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #f0f1eb;
+  background: #111614;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --page: #111614;
+  --page-raised: #1a211e;
+  --page-line: #343e39;
+  --card: #f7f7f2;
+  --card-ink: #18221e;
+  --card-muted: #5d6963;
+  --card-line: #d9ded8;
+  --teal: #2f7466;
+  --teal-dark: #245e53;
+  --teal-soft: #deebe5;
+  --text: #f0f1eb;
+  --muted: #b3bdb6;
+  --danger: #9b453b;
+  --danger-soft: #f9e8e4;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 44px;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--page);
+  color: var(--text);
+  line-height: 1.55;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+input,
+textarea,
+select,
+article,
+section,
+nav {
+  min-width: 0;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid #89c5b3;
+  outline-offset: 3px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+  border: 0;
+}
+
+.brand-mark {
+  display: inline-grid;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  color: #101815;
+  background: #8ebdb0;
+  border-radius: 12px;
+}
+
+.brand-mark svg {
+  width: 22px;
+  height: 22px;
+}
