@@ -1,0 +1,24 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://smart-meeting-assistant-k692.onrender.com/:path*"
+    },
+    {
+      "source": "/auth/:path*",
+      "destination": "https://smart-meeting-assistant-k692.onrender.com/auth/:path*"
+    },
+    {
+      "source": "/transcripts/:path*",
+      "destination": "https://smart-meeting-assistant-k692.onrender.com/transcripts/:path*"
+    },
+    {
+      "source": "/reports/:path*",
+      "destination": "https://smart-meeting-assistant-k692.onrender.com/reports/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "https://smart-meeting-assistant-k692.onrender.com/health"
+    }
+  ]
+}
