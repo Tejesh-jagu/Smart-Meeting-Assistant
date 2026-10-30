@@ -3,5 +3,7 @@ uvicorn
 python-multipart
 psycopg[binary]
 python-dotenv
-faster-whisper
+groq
+httpx
 argon2-cffi
+imageio-ffmpeg

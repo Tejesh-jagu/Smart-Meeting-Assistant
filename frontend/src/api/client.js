@@ -3,7 +3,9 @@ const localApiUrl = typeof window === 'undefined'
   : `${window.location.protocol}//${window.location.hostname}:${import.meta.env.VITE_API_PORT || 8000}`
 
 export const API_URL = (
-  import.meta.env.VITE_API_PORT ? localApiUrl : import.meta.env.VITE_API_URL || localApiUrl
+  import.meta.env.DEV && !import.meta.env.VITE_API_URL
+    ? ''
+    : import.meta.env.VITE_API_URL || localApiUrl
 ).replace(/\/$/, '')
 
 

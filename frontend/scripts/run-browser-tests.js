@@ -42,10 +42,11 @@ async function waitForFrontend(child, url) {
 
 const port = await findAvailablePort()
 const url = `http://127.0.0.1:${port}`
+// Mocked API calls must not fall through to a real local backend.
 const vite = spawn(process.execPath, [
   path.join(frontendDir, 'node_modules/vite/bin/vite.js'),
   '--host', '127.0.0.1', '--port', String(port), '--strictPort',
-], { cwd: frontendDir, stdio: 'inherit', env: { ...process.env, VITE_API_PORT: String(port) } })
+], { cwd: frontendDir, stdio: 'inherit', env: { ...process.env, VITE_API_PORT: '1' } })
 let runner
 
 try {

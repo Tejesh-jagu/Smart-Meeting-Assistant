@@ -16,19 +16,10 @@ def health_check():
             detail="PostgreSQL is unavailable.",
         ) from error
 
-    try:
-        with runtime.urlopen(f"{runtime.OLLAMA_BASE_URL}/api/tags", timeout=5) as response:
-            installed_models = runtime.json.loads(response.read().decode("utf-8")).get("models", [])
-    except (runtime.URLError, OSError, runtime.json.JSONDecodeError) as error:
+    if not runtime.GROQ_API_KEY:
         raise HTTPException(
             status_code=503,
-            detail="Ollama is unavailable.",
-        ) from error
-
-    if not any(model.get("name") == runtime.OLLAMA_MODEL for model in installed_models):
-        raise HTTPException(
-            status_code=503,
-            detail=f"Configured Ollama model {runtime.OLLAMA_MODEL} is not installed.",
+            detail="GROQ_API_KEY is not configured.",
         )
 
-    return {"status": "ok", "database": "ok", "ollama": "ok", "model": runtime.OLLAMA_MODEL}
+    return {"status": "ok", "database": "ok", "groq": "configured", "model": runtime.GROQ_MODEL}

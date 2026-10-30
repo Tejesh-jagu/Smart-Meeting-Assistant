@@ -12,7 +12,7 @@ Copy-Item .env.example .env.local
 npm run dev
 ```
 
-Set `VITE_API_PORT` in `.env.local` if the backend uses a port other than `8000`. The frontend uses the same hostname you opened it with, so its CSRF and session cookies work with either `localhost` or `127.0.0.1`. Vite reads environment values at startup; restart it after changing them. Use `VITE_API_URL` only when you need to set a specific API origin.
+In development, Vite proxies `/auth`, `/transcripts`, `/reports`, and `/health` to `127.0.0.1:VITE_API_PORT` (`8000` by default). Browser requests stay same-origin, preserving session cookies and CSRF behavior on `localhost` and `127.0.0.1`. Set `VITE_API_PORT` in `.env.local` if FastAPI uses a different port. `VITE_API_URL` overrides the proxy; leave it unset for local use and ngrok. Vite reads environment values at startup, so restart it after changes.
 
 ## Verify changes
 
@@ -28,3 +28,7 @@ The Vitest suite checks audio play/pause, seeking, duration display, and transcr
 Install the browser once with `npx playwright install chromium` if Playwright reports that its browser is missing. The test runner starts and stops its own temporary Vite server.
 
 For deployment, set `VITE_API_URL` to the HTTPS API origin at build time. The backend must include the exact frontend origin in `FRONTEND_ORIGINS`.
+
+## Controlled ngrok demo
+
+The tunnel should point only to Vite on `localhost:5173`. Vite proxies the API paths above to FastAPI on loopback; do not tunnel port `8000`, PostgreSQL, or Ollama. See the repository README's [controlled ngrok demo guide](../README.md#controlled-ngrok-demo-local-only) for hostname, cookie, and PowerShell setup.

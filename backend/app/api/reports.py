@@ -1,4 +1,7 @@
+import json
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from groq import APIError, Groq
 
 from .. import runtime
 
@@ -40,6 +43,8 @@ def generate_report(
             (meeting_id, user["id"]),
         ).fetchone()
         if meeting is not None:
+            if not runtime.GROQ_API_KEY:
+                raise HTTPException(status_code=500, detail="GROQ_API_KEY is not configured.")
             report_allowed = runtime.consume_rate_limit(
                 connection,
                 f"report:{user['id']}",
@@ -82,59 +87,47 @@ Transcript:
 {meeting["transcript"]}
 """
 
-    request = runtime.URLRequest(
-        f"{runtime.OLLAMA_BASE_URL}/api/generate",
-        data=runtime.json.dumps({
-            "model": runtime.OLLAMA_MODEL,
-            "prompt": prompt,
-            "stream": False,
-            "format": {
-                "type": "object",
-                "properties": {
-                    "summary": {"type": "string"},
-                    "decisions": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                    },
-                    "tasks": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                    },
+    try:
+        client = Groq(api_key=runtime.GROQ_API_KEY)
+        completion = client.chat.completions.create(
+            model=runtime.GROQ_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a meeting assistant that returns structured reports "
+                        "adhering strictly to JSON."
+                    ),
                 },
-                "required": ["summary", "decisions", "tasks"],
-                "additionalProperties": False,
-            },
-            "options": {"temperature": 0},
-        }).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0,
+        )
+    except APIError as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Groq could not generate the report. Please try again.",
+        ) from error
 
     try:
-        with runtime.urlopen(request, timeout=180) as response:
-            ollama_result = runtime.json.loads(response.read().decode("utf-8"))
-
-        report = runtime.json.loads(ollama_result["response"])
-
-    except runtime.HTTPError as error:
-        detail = runtime.http_error_message(error.code, runtime.OLLAMA_MODEL)
-        raise HTTPException(status_code=502, detail=detail) from error
-    except (runtime.URLError, TimeoutError) as error:
+        raw_content = completion.choices[0].message.content
+        if not isinstance(raw_content, str):
+            raise ValueError("Groq returned no report content.")
+        report = json.loads(raw_content)
+        if not isinstance(report, dict):
+            raise ValueError("Groq returned a non-object report.")
+    except (AttributeError, IndexError, TypeError, ValueError) as error:
         raise HTTPException(
             status_code=502,
-            detail=runtime.connection_error_message(runtime.OLLAMA_BASE_URL),
-        ) from error
-    except (KeyError, runtime.json.JSONDecodeError) as error:
-        raise HTTPException(
-            status_code=502,
-            detail="Ollama returned an invalid report response.",
+            detail="Groq returned an invalid report response.",
         ) from error
 
     sanitized_report = runtime.sanitize_report(meeting["transcript"], report)
     summary = sanitized_report["summary"]
     decisions = sanitized_report["decisions"]
     tasks = sanitized_report["tasks"]
-    generator = f"Ollama {runtime.OLLAMA_MODEL}"
+    generator = f"Groq {runtime.GROQ_MODEL}"
 
     with runtime.psycopg.connect(**runtime.DB_CONFIG) as connection:
         generated_at = connection.execute(

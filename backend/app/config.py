@@ -21,13 +21,21 @@ DB_CONFIG = {
     "dbname": os.environ["PGDATABASE"],
     "user": os.environ["PGUSER"],
     "password": os.environ["PGPASSWORD"],
+    "sslmode": os.getenv("PGSSLMODE", "require"),
 }
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").casefold() == "true"
 SESSION_COOKIE_NAME = "sma_session"
 CSRF_COOKIE_NAME = "sma_csrf"
 SESSION_MAX_AGE = 60 * 60 * 24 * 7
+OTP_HASH_SECRET = os.getenv("OTP_HASH_SECRET", "")
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "")
+SMTP_USE_SSL = os.getenv("SMTP_USE_SSL", "false").casefold() == "true"
 FRONTEND_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
@@ -36,7 +44,9 @@ FRONTEND_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
-MAX_AUDIO_UPLOAD_BYTES = 25 * 1024 * 1024
+MAX_AUDIO_UPLOAD_BYTES = 200 * 1024 * 1024
+MAX_GROQ_AUDIO_UPLOAD_BYTES = 25_000_000
+AUDIO_CHUNK_SECONDS = 300
 MAX_TRANSCRIPT_CHARACTERS = 200_000
 SIGNUPS_PER_HOUR = 10
 AI_REQUESTS_PER_HOUR = 5

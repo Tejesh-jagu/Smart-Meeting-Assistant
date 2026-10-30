@@ -1,18 +1,22 @@
 .workspace-shell {
-  display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
   min-height: 100vh;
   background: var(--page);
 }
 
 .workspace-sidebar {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  width: 248px;
   display: flex;
   flex-direction: column;
   height: 100vh;
   padding: 28px 18px 18px;
   border-right: 1px solid var(--page-line);
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 50;
+  background: var(--page);
 }
 
 .workspace-brand {
@@ -52,6 +56,7 @@
 
 .workspace-nav__button,
 .mobile-nav__button {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 13px;
@@ -65,6 +70,7 @@
   text-align: left;
   font-size: 14px;
   font-weight: 620;
+  overflow: hidden;
   transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
 }
 
@@ -83,8 +89,25 @@
 
 .workspace-nav__button[aria-current="page"] {
   color: #ecf4ee;
-  background: #26352f;
   border-color: #3d544a;
+}
+
+.workspace-nav__active-indicator {
+  position: absolute;
+  inset: 0;
+  background: #26352f;
+  border: 1px solid #3d544a;
+  border-radius: 10px;
+  z-index: 0;
+}
+
+.workspace-nav__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
 }
 
 .workspace-sidebar__footer {
@@ -119,6 +142,7 @@
 
 .workspace-main {
   min-width: 0;
+  margin-left: 248px;
 }
 
 .workspace-topbar {
@@ -181,12 +205,24 @@
 }
 
 .home-hero {
+  position: relative;
   display: flex;
   min-height: 282px;
   align-items: flex-end;
   justify-content: space-between;
   gap: 34px;
-  padding-bottom: 36px;
+  padding: 36px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(22, 33, 29, 0.88) 0%, rgba(13, 23, 20, 0.94) 100%);
+  border: 1px solid rgba(142, 189, 176, 0.16);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.45);
+  margin-bottom: 24px;
+}
+
+.home-hero__content {
+  position: relative;
+  z-index: 1;
 }
 
 .home-hero h1 {
@@ -204,11 +240,17 @@
 }
 
 .hero-note {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex: 0 0 auto;
   align-items: baseline;
   gap: 10px;
-  padding: 13px 0 5px;
+  padding: 12px 18px;
+  background: rgba(16, 28, 24, 0.6);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  border: 1px solid rgba(142, 189, 176, 0.15);
   color: #c4cec7;
   font-size: 13px;
 }
@@ -420,6 +462,7 @@
 }
 
 .filter-pill {
+  position: relative;
   min-height: 36px;
   padding: 7px 14px;
   color: #d1d8d2;
@@ -428,6 +471,8 @@
   border-radius: 999px;
   font-size: 12px;
   font-weight: 630;
+  overflow: hidden;
+  transition: color 150ms ease, border-color 150ms ease;
 }
 
 .filter-pill:hover {
@@ -437,8 +482,20 @@
 
 .filter-pill[aria-pressed="true"] {
   color: #14231c;
-  background: #b4d2c2;
   border-color: #b4d2c2;
+}
+
+.filter-pill__active-indicator {
+  position: absolute;
+  inset: 0;
+  background: #b4d2c2;
+  border-radius: 999px;
+  z-index: 0;
+}
+
+.filter-pill__label {
+  position: relative;
+  z-index: 1;
 }
 
 .search-field {
@@ -1067,6 +1124,71 @@
   font-weight: 400;
 }
 
+.session-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.session-rename-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #4f6358;
+  background: #f0f4f1;
+  border: 1px solid #c9d8cf;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.session-rename-btn:hover {
+  color: #163327;
+  background: #e2ede5;
+  border-color: #9cb8a9;
+}
+
+.session-title-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.session-title-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.session-title-input {
+  flex: 1 1 220px;
+  max-width: 380px;
+  min-height: 34px;
+  padding: 5px 11px;
+  font-size: 14px;
+  color: #1f2d26;
+  background: #ffffff;
+  border: 1.5px solid #2b6a55;
+  border-radius: 6px;
+}
+
+.session-title-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(43, 106, 85, 0.2);
+}
+
+.button--small {
+  min-height: 32px !important;
+  padding: 0 12px !important;
+  font-size: 12px !important;
+}
+
 .session-report-status {
   justify-self: end;
   margin: 4px 0 0;
@@ -1629,6 +1751,10 @@
     display: block;
   }
 
+  .workspace-main {
+    margin-left: 0;
+  }
+
   .workspace-sidebar {
     display: none;
   }
@@ -1879,6 +2005,197 @@
     padding: 21px;
   }
 }
+
+/* Animate UI Integration Styles */
+.animated-hero-typing {
+  display: inline-block;
+  color: #a9cebd;
+  font-style: normal;
+}
+
+.animated-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  background-color: #a9cebd;
+  margin-left: 2px;
+  vertical-align: -2px;
+  border-radius: 1px;
+}
+
+.workspace-view-transition {
+  width: 100%;
+}
+
+.animated-select-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.animated-select-container select {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 32px;
+  cursor: pointer;
+  background: var(--card);
+  color: var(--card-ink);
+  border: 1px solid var(--card-line);
+  border-radius: 8px;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.animated-select-container.is-focused select {
+  border-color: #2f7466;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(47, 116, 102, 0.18);
+}
+
+.animated-select-chevron {
+  position: absolute;
+  right: 12px;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: #6a7972;
+}
+
+.animated-select-container.is-focused .animated-select-chevron {
+  color: #2f7466;
+}
+
+.animated-dialog-portal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.animated-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 14, 12, 0.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.animated-dialog-wrapper {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 460px);
+}
+
+.animated-dialog-content {
+  padding: 26px 28px;
+  background: var(--card);
+  color: var(--card-ink);
+  border-radius: 16px;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--card-line);
+}
+
+.animated-dialog-title {
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #121c17;
+  letter-spacing: -0.02em;
+}
+
+.animated-dialog-description {
+  margin: 0 0 20px;
+  color: var(--card-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.animated-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+/* Glyph Background Container & Canvas */
+[data-slot="glyph-background"] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+  z-index: 0;
+  opacity: 0.035;
+}
+
+[data-slot="glyph-background"] canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none;
+}
+
+.auth-shell {
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-shell > [data-slot="glyph-background"] {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 0;
+  pointer-events: auto;
+}
+
+.auth-layout,
+.auth-footer {
+  position: relative;
+  z-index: 1;
+}
+
+.workspace-shell {
+  position: relative;
+}
+
+.workspace-main,
+.mobile-nav {
+  position: relative;
+  z-index: 1;
+}
+
+.workspace-background-canvas {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.fixed { position: fixed !important; }
+.absolute { position: absolute !important; }
+.relative { position: relative; }
+.inset-0 { top: 0 !important; right: 0 !important; bottom: 0 !important; left: 0 !important; }
+.size-full { width: 100% !important; height: 100% !important; }
+.overflow-hidden { overflow: hidden; }
+.pointer-events-none { pointer-events: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *,

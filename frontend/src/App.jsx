@@ -1,9 +1,16 @@
+import './utils/matchMediaPolyfill.js'
 import { useState } from 'react'
+import { motion } from 'motion/react'
 import AuthPanel from './components/AuthPanel.jsx'
 import RecordingPanel from './components/RecordingPanel.jsx'
 import SavedMeetings from './components/SavedMeetings.jsx'
 import TranscriptForm from './components/TranscriptForm.jsx'
 import useAppController from './hooks/useAppController.js'
+import AnimatedHeading from './components/AnimatedHeading.jsx'
+import AnimatedButton from './components/ui/AnimatedButton.jsx'
+import AnimatedCard from './components/ui/AnimatedCard.jsx'
+import AnimatedSelect from './components/ui/AnimatedSelect.jsx'
+import GlyphBackgroundDemo from './components/GlyphBackgroundDemo.jsx'
 
 const COPYRIGHT_YEAR = new Date().getFullYear()
 const NAV_ITEMS = [
@@ -48,6 +55,7 @@ function App() {
   const controller = useAppController()
   const {
     user, authStatus, authError, isLoggingOut, transcript, setTranscript,
+    transcriptTitle, setTranscriptTitle, audioTitle, setAudioTitle,
     audioPreviewUrl, recordedDuration, setRecordedDuration, message, isSavingTranscript,
     isUploadingAudio, isRecording, audioInputRef, formattedRecordingTime, messageIsError,
     restoreAuth, handleAuthenticated, logout, submitTranscript, selectAudioFile,
@@ -101,11 +109,19 @@ function App() {
     return (
       <section className="page-view" aria-labelledby="home-title">
         <div className="home-hero">
-          <div>
+          <GlyphBackgroundDemo
+            glowColor="#2dd4bf"
+            shapeColor="#38bdf8"
+            fontSize={11}
+            interactive={true}
+          />
+          <div className="home-hero__content">
             <p className="eyebrow">YOUR MEETING WORKSPACE</p>
-            <h1 id="home-title">Meeting transcripts<br /><em>and reports, organized.</em></h1>
+            <h1 id="home-title">Meeting transcripts<br /><AnimatedHeading /></h1>
             <p className="home-hero__copy">Record a meeting or add a transcript. Review the words, then create a report grounded in the saved session.</p>
-            <a className="button button--accent" href="#capture-tools">Record or upload audio</a>
+            <AnimatedButton asChild className="button button--accent">
+              <a href="#capture-tools">Record or upload audio</a>
+            </AnimatedButton>
           </div>
           <div className="hero-note" aria-label={isLoadingMeetings ? 'Loading saved sessions' : `${meetings.length} saved meeting sessions`}>
             {isLoadingMeetings ? <span>Loading saved sessions...</span> : <>
@@ -115,7 +131,7 @@ function App() {
           </div>
         </div>
 
-        <section className="ongoing-panel" aria-labelledby="ongoing-title">
+        <AnimatedCard as="section" className="ongoing-panel" aria-labelledby="ongoing-title" hoverLift={false}>
           <div className="section-title-row">
             <div>
               <p className="eyebrow">LIVE STATUS</p>
@@ -130,12 +146,12 @@ function App() {
               <span className="recording-dot" aria-hidden="true" />
               <span>Microphone recording in this browser</span>
               <strong>{formattedRecordingTime}</strong>
-              <button className="button button--danger" type="button" onClick={stopRecording}>Stop recording</button>
+              <AnimatedButton className="button button--danger" type="button" onClick={stopRecording}>Stop recording</AnimatedButton>
             </div>
           ) : (
             <p className="muted-copy">No live call is connected. This workspace supports local microphone recording and audio upload, not hosted video meetings.</p>
           )}
-        </section>
+        </AnimatedCard>
 
         <section className="home-meetings" aria-labelledby="home-meetings-title">
           <div className="section-title-row section-title-row--meetings">
@@ -148,17 +164,27 @@ function App() {
 
           <div className="meeting-controls">
             <div className="filter-pills" aria-label="Filter meeting sessions">
-              {FILTERS.map((filter) => (
-                <button
-                  className="filter-pill"
-                  key={filter.id}
-                  type="button"
-                  aria-pressed={meetingFilter === filter.id}
-                  onClick={() => setMeetingFilter(filter.id)}
-                >
-                  {filter.label}
-                </button>
-              ))}
+              {FILTERS.map((filter) => {
+                const isSelected = meetingFilter === filter.id
+                return (
+                  <button
+                    className="filter-pill"
+                    key={filter.id}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => setMeetingFilter(filter.id)}
+                  >
+                    {isSelected && (
+                      <motion.span
+                        layoutId="activeFilterPill"
+                        className="filter-pill__active-indicator"
+                        transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                      />
+                    )}
+                    <span className="filter-pill__label">{filter.label}</span>
+                  </button>
+                )
+              })}
             </div>
             <label className="search-field">
               <span className="sr-only">Search meeting sessions</span>
@@ -182,7 +208,7 @@ function App() {
           ) : meetingsLoadError ? (
             <div className="state-card state-card--error">
               <p role="alert">Could not load sessions: {meetingsLoadError}</p>
-              <button className="button button--secondary" type="button" onClick={() => loadMeetings()}>Try again</button>
+              <AnimatedButton className="button button--secondary" type="button" onClick={() => loadMeetings()}>Try again</AnimatedButton>
             </div>
           ) : meetings.length === 0 ? (
             <div className="state-card">
@@ -196,24 +222,28 @@ function App() {
             </div>
           ) : (
             <ul className="meeting-grid">
-              {homeMeetings.slice(0, 3).map((meeting) => {
+              {homeMeetings.slice(0, 3).map((meeting, index) => {
                 const report = reports[meeting.id]
                 return (
                   <li key={meeting.id}>
-                    <article className="meeting-card" aria-labelledby={`home-session-${meeting.id}`}>
+                    <AnimatedCard
+                      className="meeting-card"
+                      aria-labelledby={`home-session-${meeting.id}`}
+                      delay={index * 0.05}
+                    >
                       <div className="meeting-card__topline">
-                        <span className="session-label">SESSION {meeting.session_number}</span>
+                        <span className="session-label">{meeting.title ? meeting.title.toUpperCase() : `SESSION ${meeting.session_number}`}</span>
                         <span className={`status-tag${report ? ' status-tag--ready' : ''}`}>
                           {isLoadingReports ? 'Checking report' : report ? 'Report ready' : 'Transcript saved'}
                         </span>
                       </div>
-                      <h3 id={`home-session-${meeting.id}`}>Session {meeting.session_number}</h3>
+                      <h3 id={`home-session-${meeting.id}`}>{meeting.title || `Session ${meeting.session_number}`}</h3>
                       <time dateTime={meeting.created_at}>{meetingDate(meeting.created_at)}</time>
                       <p className="meeting-card__excerpt">{meeting.transcript.slice(0, 150)}{meeting.transcript.length > 150 ? '…' : ''}</p>
-                      <button className="button button--card" type="button" onClick={() => openAi(meeting.id)}>
+                      <AnimatedButton className="button button--card" type="button" onClick={() => openAi(meeting.id)}>
                         {report ? 'Review report' : 'Open session'}
-                      </button>
-                    </article>
+                      </AnimatedButton>
+                    </AnimatedCard>
                   </li>
                 )
               })}
@@ -223,6 +253,8 @@ function App() {
 
         <div id="capture-tools" className="capture-grid">
           <RecordingPanel
+            audioTitle={audioTitle}
+            setAudioTitle={setAudioTitle}
             audioInputRef={audioInputRef}
             uploadAudio={uploadAudio}
             isUploadingAudio={isUploadingAudio}
@@ -235,7 +267,14 @@ function App() {
             startRecording={startRecording}
             recordedDuration={recordedDuration}
           />
-          <TranscriptForm transcript={transcript} onChange={setTranscript} onSubmit={submitTranscript} isSaving={isSavingTranscript} />
+          <TranscriptForm
+            title={transcriptTitle}
+            onTitleChange={setTranscriptTitle}
+            transcript={transcript}
+            onChange={setTranscript}
+            onSubmit={submitTranscript}
+            isSaving={isSavingTranscript}
+          />
         </div>
       </section>
     )
@@ -266,31 +305,31 @@ function App() {
           <div className="ai-workspace">
             <div className="ai-session-picker">
               <label htmlFor="ai-session">Select a saved session</label>
-              <select
+              <AnimatedSelect
                 id="ai-session"
                 value={String(selectedMeeting?.id ?? '')}
                 onChange={(event) => setSelectedMeetingId(event.target.value)}
               >
                 {meetings.map((meeting) => (
-                  <option key={meeting.id} value={String(meeting.id)}>Session {meeting.session_number} · {meetingDate(meeting.created_at)}</option>
+                  <option key={meeting.id} value={String(meeting.id)}>{meeting.title || `Session ${meeting.session_number}`} · {meetingDate(meeting.created_at)}</option>
                 ))}
-              </select>
+              </AnimatedSelect>
             </div>
 
             {selectedMeeting && (
-              <article className="ai-report-card" aria-labelledby="ai-report-heading">
+              <AnimatedCard as="article" className="ai-report-card" aria-labelledby="ai-report-heading">
                 <header className="ai-report-card__header">
                   <div>
-                    <p className="eyebrow">SESSION {selectedMeeting.session_number}</p>
+                    <p className="eyebrow">{selectedMeeting.title ? selectedMeeting.title.toUpperCase() : `SESSION ${selectedMeeting.session_number}`}</p>
                     <h2 id="ai-report-heading">{report ? 'Meeting report' : 'Create a meeting report'}</h2>
                     <p>{meetingDate(selectedMeeting.created_at)}</p>
                   </div>
                   <div className="report-actions">
                     {report && <>
-                      <button className="button button--secondary" type="button" onClick={() => downloadReport(selectedMeeting, report)}>Download</button>
-                      <button className="button button--secondary" type="button" onClick={() => printReport(selectedMeeting, report)}>Print</button>
+                      <AnimatedButton className="button button--secondary" type="button" onClick={() => downloadReport(selectedMeeting, report)}>Download</AnimatedButton>
+                      <AnimatedButton className="button button--secondary" type="button" onClick={() => printReport(selectedMeeting, report)}>Print</AnimatedButton>
                     </>}
-                    <button
+                    <AnimatedButton
                       className="button button--primary"
                       type="button"
                       onClick={() => generateReport(selectedMeeting.id)}
@@ -298,7 +337,7 @@ function App() {
                       aria-busy={Boolean(isGenerating)}
                     >
                       {isGenerating ? 'Generating report...' : report ? 'Regenerate report' : 'Generate report'}
-                    </button>
+                    </AnimatedButton>
                   </div>
                 </header>
 
@@ -330,7 +369,7 @@ function App() {
                 ) : (
                   <p className="report-state">No report is saved for this session yet. Generate one from its transcript.</p>
                 )}
-              </article>
+              </AnimatedCard>
             )}
           </div>
         )}
@@ -372,9 +411,9 @@ function App() {
             <div><dt>Email</dt><dd>{user.email}</dd></div>
           </dl>
           <div className="profile-actions">
-            <button className="button button--danger" type="button" onClick={logout} disabled={isLoggingOut} aria-busy={isLoggingOut}>
+            <AnimatedButton className="button button--danger" type="button" onClick={logout} disabled={isLoggingOut} aria-busy={isLoggingOut}>
               {isLoggingOut ? 'Signing out...' : 'Sign out'}
-            </button>
+            </AnimatedButton>
           </div>
         </section>
         <section className="legal-card" aria-labelledby="legal-title">
@@ -393,6 +432,13 @@ function App() {
 
   return (
     <main className="workspace-shell">
+      <GlyphBackgroundDemo
+        glowColor="#2dd4bf"
+        shapeColor="#38bdf8"
+        fontSize={12}
+        interactive={false}
+        className="workspace-background-canvas"
+      />
       <aside className="workspace-sidebar">
         <a className="workspace-brand" href="/" aria-label="Smart Meeting Assistant home">
           <span className="brand-mark" aria-hidden="true"><AreaIcon name="ai" /></span>
@@ -400,18 +446,30 @@ function App() {
         </a>
         <p className="workspace-sidebar__label">WORKSPACE</p>
         <nav className="workspace-nav" aria-label="Main navigation">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              className="workspace-nav__button"
-              type="button"
-              aria-current={activeArea === item.id ? 'page' : undefined}
-              onClick={() => setActiveArea(item.id)}
-            >
-              <AreaIcon name={item.id} />
-              <span>{item.label}</span>
-            </button>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            const isCurrent = activeArea === item.id
+            return (
+              <button
+                key={item.id}
+                className="workspace-nav__button"
+                type="button"
+                aria-current={isCurrent ? 'page' : undefined}
+                onClick={() => setActiveArea(item.id)}
+              >
+                {isCurrent && (
+                  <motion.span
+                    layoutId="activeNavPill"
+                    className="workspace-nav__active-indicator"
+                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                  />
+                )}
+                <span className="workspace-nav__content">
+                  <AreaIcon name={item.id} />
+                  <span>{item.label}</span>
+                </span>
+              </button>
+            )
+          })}
         </nav>
         <div className="workspace-sidebar__footer">
           <span className="user-initial" aria-hidden="true">{user.name.trim().charAt(0).toUpperCase()}</span>
@@ -424,9 +482,9 @@ function App() {
           <span className="workspace-topbar__title">Meeting workspace</span>
           <div className="workspace-topbar__account">
             <span>Signed in as {user.name}</span>
-            <button className="button button--top-signout" type="button" onClick={logout} disabled={isLoggingOut} aria-busy={isLoggingOut}>
+            <AnimatedButton className="button button--top-signout" type="button" onClick={logout} disabled={isLoggingOut} aria-busy={isLoggingOut}>
               {isLoggingOut ? 'Signing out...' : 'Sign out'}
-            </button>
+            </AnimatedButton>
           </div>
         </header>
 
@@ -442,7 +500,14 @@ function App() {
         )}
 
         <div className="workspace-content" key={activeArea}>
-          {pages[activeArea]()}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="workspace-view-transition"
+          >
+            {pages[activeArea]()}
+          </motion.div>
           <footer className="site-footer">
             <span>&copy; {COPYRIGHT_YEAR} Smart Meeting Assistant</span>
             <nav aria-label="Legal information">

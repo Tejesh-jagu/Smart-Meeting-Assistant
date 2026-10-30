@@ -12,6 +12,8 @@
     "test:browser": "node scripts/run-browser-tests.js"
   },
   "dependencies": {
+    "@animate-ui/react": "^2.3.0",
+    "motion": "^14.6.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

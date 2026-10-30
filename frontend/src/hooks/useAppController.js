@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { API_URL, createApiClient, readApiJson } from '../api/client.js'
 import { makeWavBlob } from '../utils/audio.js'
 
+const MAX_AUDIO_UPLOAD_BYTES = 200 * 1024 * 1024
+
 export default function useAppController() {
   const [user, setUser] = useState(null)
   const [csrfToken, setCsrfToken] = useState('')
@@ -23,6 +25,11 @@ export default function useAppController() {
   const [generatingReportId, setGeneratingReportId] = useState(null)
   const [editingMeetingId, setEditingMeetingId] = useState(null)
   const [editingTranscript, setEditingTranscript] = useState('')
+  const [transcriptTitle, setTranscriptTitle] = useState('')
+  const [audioTitle, setAudioTitle] = useState('')
+  const [editingTitleId, setEditingTitleId] = useState(null)
+  const [editingTitle, setEditingTitle] = useState('')
+  const [isSavingTitle, setIsSavingTitle] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
@@ -39,6 +46,7 @@ export default function useAppController() {
   const normalizedSearchTerm = searchTerm.trim().toLowerCase()
   const filteredMeetings = meetings.filter((meeting) =>
     `session ${meeting.session_number}`.toLowerCase().includes(normalizedSearchTerm)
+    || (meeting.title || '').toLowerCase().includes(normalizedSearchTerm)
     || meeting.transcript.toLowerCase().includes(normalizedSearchTerm)
   )
 
@@ -190,16 +198,21 @@ export default function useAppController() {
     setMessage('Saving transcript...')
 
     try {
+      const payload = { transcript }
+      if (transcriptTitle.trim()) {
+        payload.title = transcriptTitle.trim()
+      }
       const response = await apiFetch(`${API_URL}/transcripts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript }),
+        body: JSON.stringify(payload),
       })
 
       const result = await readApiJson(response, 'Could not save the transcript.')
 
       setMessage(result.message)
       setTranscript('')
+      setTranscriptTitle('')
       await loadMeetings()
     } catch (error) {
       setMessage(`Error: ${error.message}`)
@@ -212,6 +225,7 @@ export default function useAppController() {
     setAudioFile(null)
     setAudioPreviewUrl('')
     setRecordedDuration(0)
+    setAudioTitle('')
 
     if (audioInputRef.current) {
       audioInputRef.current.value = ''
@@ -219,6 +233,17 @@ export default function useAppController() {
   }
 
   function selectAudioFile(file) {
+    if (file && file.size > MAX_AUDIO_UPLOAD_BYTES) {
+      setAudioFile(null)
+      setAudioPreviewUrl('')
+      setRecordedDuration(0)
+      setMessage('Error: Audio file is too large. Choose a file no larger than 200 MB.')
+      if (audioInputRef.current) {
+        audioInputRef.current.value = ''
+      }
+      return
+    }
+
     setAudioFile(file)
     setAudioPreviewUrl(file ? URL.createObjectURL(file) : '')
   }
@@ -234,6 +259,9 @@ export default function useAppController() {
     const form = event.currentTarget
     const formData = new FormData()
     formData.append('file', audioFile)
+    if (audioTitle.trim()) {
+      formData.append('title', audioTitle.trim())
+    }
 
     setMessage('Transcribing audio and saving transcript...')
     setIsUploadingAudio(true)
@@ -248,7 +276,8 @@ export default function useAppController() {
 
       setMessage(result.message)
       clearAudioSelection()
-      form.reset()
+      setAudioTitle('')
+      form?.reset?.()
       await loadMeetings()
     } catch (error) {
       setMessage(`Error: ${error.message}`)
@@ -380,6 +409,50 @@ export default function useAppController() {
     setEditingTranscript('')
   }
 
+  function startEditingTitle(meeting) {
+    setEditingTitleId(meeting.id)
+    setEditingTitle(meeting.title || `Session ${meeting.session_number}`)
+  }
+
+  function cancelEditingTitle() {
+    setEditingTitleId(null)
+    setEditingTitle('')
+  }
+
+  async function saveTitle(meetingId) {
+    const trimmedTitle = editingTitle.trim()
+    if (!trimmedTitle) {
+      setMessage('Session title cannot be empty.')
+      return
+    }
+
+    setIsSavingTitle(true)
+    setMessage('Updating session title...')
+
+    try {
+      const response = await apiFetch(`${API_URL}/transcripts/${meetingId}/title`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: trimmedTitle }),
+      })
+
+      const result = await readApiJson(response, 'Could not update session title.')
+
+      setMeetings((currentMeetings) =>
+        currentMeetings.map((m) =>
+          m.id === meetingId ? { ...m, title: trimmedTitle } : m
+        )
+      )
+
+      setMessage(result.message || 'Session title updated.')
+      cancelEditingTitle()
+    } catch (error) {
+      setMessage(`Error: ${error.message}`)
+    } finally {
+      setIsSavingTitle(false)
+    }
+  }
+
   async function saveTranscript(meetingId) {
     if (!editingTranscript.trim()) {
       setMessage('Transcript cannot be empty.')
@@ -436,6 +509,9 @@ export default function useAppController() {
       if (editingMeetingId === meetingId) {
         cancelEditing()
       }
+      if (editingTitleId === meetingId) {
+        cancelEditingTitle()
+      }
 
       setMessage(result.message)
       await loadMeetings()
@@ -470,6 +546,7 @@ export default function useAppController() {
   }
 
   function printReport(meeting, report) {
+    const displayTitle = meeting.title || `Session ${meeting.session_number || meeting.id}`
     const escapeHtml = (value) =>
       String(value ?? '').replace(/[&<>"']/g, (character) => ({
         '&': '&amp;',
@@ -495,7 +572,7 @@ export default function useAppController() {
       <!doctype html>
       <html>
         <head>
-          <title>Meeting report ${meeting.id}</title>
+          <title>${escapeHtml(displayTitle)} - Meeting report</title>
           <style>
             body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; color: #1f2937; line-height: 1.6; }
             h1, h2 { color: #1e3a8a; }
@@ -505,6 +582,7 @@ export default function useAppController() {
         </head>
         <body>
           <h1>Smart Meeting Assistant</h1>
+          <h2>${escapeHtml(displayTitle)}</h2>
           <p>${escapeHtml(new Date(meeting.created_at).toLocaleString())}</p>
           <h2>Transcript</h2>
           <p class="transcript">${escapeHtml(meeting.transcript)}</p>
@@ -524,8 +602,9 @@ export default function useAppController() {
   }
 
   function downloadReport(meeting, report) {
+    const displayTitle = meeting.title || `Session ${meeting.session_number || meeting.id}`
     const reportText = [
-      'Smart Meeting Assistant - Meeting Report',
+      `Smart Meeting Assistant - ${displayTitle}`,
       `Date: ${new Date(meeting.created_at).toLocaleString()}`,
       '',
       'Transcript',
@@ -551,8 +630,9 @@ export default function useAppController() {
     const url = URL.createObjectURL(file)
     const link = document.createElement('a')
 
+    const safeFilename = displayTitle.toLowerCase().replace(/[^a-z0-9_-]/g, '-').replace(/-+/g, '-')
     link.href = url
-    link.download = `meeting-report-${meeting.id}.txt`
+    link.download = `meeting-report-${safeFilename}.txt`
     link.click()
 
     setTimeout(() => URL.revokeObjectURL(url), 1000)
@@ -560,8 +640,11 @@ export default function useAppController() {
 
 
   return {
-    user, csrfToken, authStatus, authError, isLoggingOut, transcript, setTranscript, audioPreviewUrl,
-    recordedDuration, setRecordedDuration, message, meetings, isLoadingMeetings,
+    user, csrfToken, authStatus, authError, isLoggingOut, transcript, setTranscript,
+    transcriptTitle, setTranscriptTitle, audioTitle, setAudioTitle,
+    editingTitleId, editingTitle, setEditingTitle, isSavingTitle,
+    startEditingTitle, cancelEditingTitle, saveTitle,
+    audioPreviewUrl, recordedDuration, setRecordedDuration, message, meetings, isLoadingMeetings,
     meetingsLoadError, isLoadingReports, isSavingTranscript, isUploadingAudio, reports,
     generatingReportId, editingMeetingId, editingTranscript, setEditingTranscript,
     searchTerm, setSearchTerm, isMenuOpen, setIsMenuOpen, isRecording, recordingSeconds,

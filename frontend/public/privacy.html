@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -16,7 +16,7 @@
       <a href="/terms.html">Terms and Conditions</a>
     </nav>
     <h1>Privacy Policy</h1>
-    <p class="updated">Draft for local evaluation. Updated October 19, 2026.</p>
+    <p class="updated">Draft for local evaluation. Updated October 30, 2026.</p>
     <aside class="draft-notice" aria-label="Draft notice">
       <strong>Draft notice</strong>
       <p>Before public use, the operator must add its legal name and contact details, specify the applicable jurisdiction, set backup retention rules, and review this notice for the actual hosting setup.</p>
@@ -29,10 +29,10 @@
     <p>The application processes meeting transcripts that you type or obtain from an audio recording, and the reports generated from those transcripts. It does not require an account in this version.</p>
 
     <h2>Audio recording and transcription</h2>
-    <p>When you record in the browser, the recording is held in the browser for preview until you choose to transcribe it. When you upload or submit a recording, the backend writes a temporary audio file and uses its configured faster-whisper model to create a transcript. The backend attempts to remove that temporary file after processing, including when processing fails. The application code does not send audio to a separate hosted transcription service.</p>
+    <p>When you record in the browser, the recording is held in the browser for preview until you choose to transcribe it. When you upload or submit a recording, the backend writes a temporary audio file and sends it to Groq's hosted Whisper API for transcription. Groq receives and processes the audio under its own data-handling and retention practices. The backend attempts to remove its temporary file after processing, including when processing fails; the recording is not stored in the application's PostgreSQL database.</p>
 
     <h2>Meeting reports and model processing</h2>
-    <p>When you request a report, the backend sends the transcript to the Ollama service at the configured <code>OLLAMA_BASE_URL</code>. The default address is <code>http://localhost:11434</code>. If the operator changes this setting to a remote host, that host receives the transcript and its own privacy and retention practices apply.</p>
+    <p>When you request a report, the backend sends the transcript to Groq's hosted chat-completion API using the model configured by the operator (default: <code>llama-3.3-70b-versatile</code>). Groq receives and processes the transcript under its own data-handling and retention practices. The operator configures the API key on the backend; it is not included in the frontend.</p>
 
     <h2>Storage, deletion, and backups</h2>
     <p>Transcripts and generated reports are stored in the PostgreSQL database configured by the operator. They remain there until a user deletes the meeting or a database administrator removes it. Deleting a meeting also deletes its linked report. Separately created database backups may continue to contain deleted records until those backups are removed under the operator's backup retention process. This local build does not define an automatic backup retention period.</p>

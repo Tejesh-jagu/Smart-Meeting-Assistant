@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -16,7 +16,7 @@
       <a href="/privacy.html">Privacy Policy</a>
     </nav>
     <h1>Terms and Conditions</h1>
-    <p class="updated">Draft for local evaluation. Updated October 19, 2026.</p>
+    <p class="updated">Draft for local evaluation. Updated October 30, 2026.</p>
     <aside class="draft-notice" aria-label="Draft notice">
       <strong>Draft notice</strong>
       <p>Before public use, the operator must add its legal name and contact details, specify the applicable jurisdiction, and obtain review for the intended service and hosting arrangement.</p>
@@ -35,7 +35,7 @@
     <p>This build has no sign-in or user-level access control. Keep it on the local machine or a private network. You are responsible for protecting the device, database credentials, network access, and backups. Meeting deletion removes the database record and linked report; separate backups are managed independently.</p>
 
     <h2>Model service configuration</h2>
-    <p>Report generation sends transcript text to the Ollama service configured by the operator. The default is a service on the same machine. If a different host is configured, review that host's terms and data practices before sending meeting information to it.</p>
+    <p>Audio transcription sends recordings to Groq's hosted Whisper API. Report generation sends transcript text to Groq's hosted chat-completion API using the model configured by the operator. Review Groq's terms and data-handling practices before sending meeting information to the service.</p>
 
     <h2>Availability and changes</h2>
     <p>This is a local evaluation version. No uptime or support commitments are defined. Features and model behavior may change. The operator must add any service-specific commitments and jurisdiction-specific terms before public use.</p>

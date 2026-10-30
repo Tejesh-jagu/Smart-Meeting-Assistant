@@ -28,6 +28,30 @@ function stubAuthenticatedFetch(handler) {
 }
 
 describe('Smart Meeting Assistant interactions', () => {
+  it('shows the 200 MB upload limit and rejects larger audio files', async () => {
+    stubAuthenticatedFetch((url) => {
+      if (url.endsWith('/transcripts')) return jsonResponse([])
+      if (url.endsWith('/reports')) return jsonResponse([])
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    const createObjectURL = vi.fn(() => 'blob:preview-audio')
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL: vi.fn() })
+
+    render(<App />)
+    await screen.findByText('Signed in as Test User')
+    expect(screen.getByText(/Maximum file size: 200 MB/)).toBeTruthy()
+
+    const oversizedFile = new File(['sample audio'], 'meeting.wav', { type: 'audio/wav' })
+    Object.defineProperty(oversizedFile, 'size', { value: 200 * 1024 * 1024 + 1 })
+    fireEvent.change(screen.getByLabelText('Choose an audio file'), {
+      target: { files: [oversizedFile] },
+    })
+
+    expect(await screen.findByText(/Audio file is too large/)).toBeTruthy()
+    expect(createObjectURL).not.toHaveBeenCalled()
+    expect(screen.queryByText('Audio preview')).toBeNull()
+  })
+
   it('keeps audio play, pause, seeking, and duration connected', async () => {
     stubAuthenticatedFetch((url) => {
       if (url.endsWith('/transcripts')) return jsonResponse([])
@@ -322,6 +346,15 @@ describe('Smart Meeting Assistant interactions', () => {
       }
       if (url.endsWith('/auth/register')) {
         expect(options.headers['X-CSRF-Token']).toBe('csrf-test')
+        expect(JSON.parse(options.body)).toEqual({ name: 'Priya Shah', email: 'priya@example.com' })
+        return jsonResponse({
+          verification_required: true,
+          email: 'priya@example.com',
+          message: 'Enter the verification code sent to your email.',
+        })
+      }
+      if (url.endsWith('/auth/verify-email')) {
+        expect(JSON.parse(options.body)).toEqual({ email: 'priya@example.com', code: '12345678', password: 'secure-pass-123' })
         return jsonResponse({
           user: { id: 8, name: 'Priya Shah', email: 'priya@example.com' },
           csrf_token: 'csrf-session',
@@ -336,12 +369,50 @@ describe('Smart Meeting Assistant interactions', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Create an account' }))
     await userEvent.type(screen.getByLabelText('Name'), 'Priya Shah')
     await userEvent.type(screen.getByLabelText('Email'), 'priya@example.com')
-    await userEvent.type(screen.getByLabelText('Password'), 'secure-pass-123')
-    await userEvent.type(screen.getByLabelText('Confirm password'), 'secure-pass-123')
     await userEvent.click(screen.getByRole('button', { name: 'Create account' }))
+    expect(await screen.findByRole('heading', { name: 'Verify your email' })).toBeTruthy()
+    await userEvent.type(screen.getByLabelText('Verification code'), '12345678')
+    await userEvent.type(screen.getByLabelText('Choose a password'), 'secure-pass-123')
+    await userEvent.type(screen.getByLabelText('Confirm password'), 'secure-pass-123')
+    await userEvent.click(screen.getByRole('button', { name: 'Verify email' }))
 
     expect(await screen.findByText('Signed in as Priya Shah')).toBeTruthy()
-    expect(screen.getByText('Account created. You are signed in.')).toBeTruthy()
+  })
+
+  it('requests a password reset code and lets the user set a new password', async () => {
+    vi.stubGlobal('fetch', vi.fn((url, options = {}) => {
+      if (url.endsWith('/auth/csrf')) return jsonResponse({ csrf_token: 'csrf-test' })
+      if (url.endsWith('/auth/me')) {
+        return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ detail: 'Authentication required.' }) })
+      }
+      if (url.endsWith('/auth/request-password-reset')) {
+        expect(options.headers['X-CSRF-Token']).toBe('csrf-test')
+        expect(JSON.parse(options.body)).toEqual({ email: 'priya@example.com' })
+        return jsonResponse({ message: 'If a verified account exists for that email, a password reset code has been sent.' })
+      }
+      if (url.endsWith('/auth/reset-password')) {
+        expect(JSON.parse(options.body)).toEqual({
+          email: 'priya@example.com',
+          code: '12345678',
+          password: 'new-secure-pass-456',
+        })
+        return jsonResponse({ message: 'Password reset. Sign in with your new password.' })
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    }))
+
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Forgot password?' }))
+    await userEvent.type(screen.getByLabelText('Email'), 'priya@example.com')
+    await userEvent.click(screen.getByRole('button', { name: 'Send reset code' }))
+    expect(await screen.findByRole('heading', { name: 'Choose a new password' })).toBeTruthy()
+    await userEvent.type(screen.getByLabelText('Verification code'), '12345678')
+    await userEvent.type(screen.getByLabelText('New password'), 'new-secure-pass-456')
+    await userEvent.type(screen.getByLabelText('Confirm password'), 'new-secure-pass-456')
+    await userEvent.click(screen.getByRole('button', { name: 'Reset password' }))
+
+    expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeTruthy()
+    expect(await screen.findByText('Password reset. Sign in with your new password.')).toBeTruthy()
   })
 
   it('reports a sign-in setup error after logout instead of staying in a loading state', async () => {
@@ -371,5 +442,40 @@ describe('Smart Meeting Assistant interactions', () => {
 
     expect(await screen.findByRole('heading', { name: 'Sign-in is unavailable' })).toBeTruthy()
     expect(screen.getByRole('alert').textContent).toMatch(/prepare the sign-in form/i)
+  })
+
+  it('allows renaming a session title in Notes and persists the change', async () => {
+    let meetings = [
+      { id: 10, session_number: 1, title: 'Session 1', transcript: 'Initial discussion.', created_at: '2026-10-20T10:00:00Z' },
+    ]
+    stubAuthenticatedFetch((url, options = {}) => {
+      if (url.endsWith('/transcripts') && (!options.method || options.method === 'GET')) {
+        return jsonResponse(meetings)
+      }
+      if (url.endsWith('/transcripts/10/title') && options.method === 'PATCH') {
+        const body = JSON.parse(options.body)
+        meetings = [{ ...meetings[0], title: body.title }]
+        return jsonResponse({ message: 'Session title updated', id: 10, title: body.title })
+      }
+      if (url.endsWith('/reports')) return jsonResponse([])
+      throw new Error(`Unexpected request: ${url}`)
+    })
+
+    render(<App />)
+    await screen.findByText('Signed in as Test User')
+
+    const desktopNav = screen.getAllByRole('navigation', { name: 'Main navigation' })[0]
+    await userEvent.click(within(desktopNav).getByRole('button', { name: 'Notes' }))
+    expect(await screen.findByRole('heading', { name: 'Session 1' })).toBeTruthy()
+
+    const renameButton = screen.getByRole('button', { name: /Rename session Session 1/i })
+    await userEvent.click(renameButton)
+
+    const titleInput = screen.getByRole('textbox', { name: 'Session title' })
+    await userEvent.clear(titleInput)
+    await userEvent.type(titleInput, 'Sprint 42 Kickoff')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('heading', { name: 'Sprint 42 Kickoff' })).toBeTruthy()
   })
 })

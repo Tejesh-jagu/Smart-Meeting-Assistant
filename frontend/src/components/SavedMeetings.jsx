@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import AnimatedButton from './ui/AnimatedButton.jsx'
+import AnimatedCard from './ui/AnimatedCard.jsx'
+import AnimatedSelect from './ui/AnimatedSelect.jsx'
 
 export default function SavedMeetings({ controller }) {
   const {
@@ -7,6 +10,8 @@ export default function SavedMeetings({ controller }) {
     setEditingTranscript, startEditing, saveTranscript, cancelEditing,
     generateReport, isLoadingReports, generatingReportId, deleteMeeting,
     downloadReport, printReport,
+    editingTitleId, editingTitle, setEditingTitle, isSavingTitle,
+    startEditingTitle, cancelEditingTitle, saveTitle,
   } = controller
   const [dateFilter, setDateFilter] = useState({ period: 'all', now: 0 })
   const visibleMeetings = filteredMeetings.filter((meeting) => {
@@ -52,12 +57,12 @@ export default function SavedMeetings({ controller }) {
         </div>
         <div>
           <label htmlFor="meeting-date-filter">Filter by date</label>
-          <select id="meeting-date-filter" value={dateFilter.period} onChange={(event) => setDateFilter({ period: event.target.value, now: Date.now() })}>
+          <AnimatedSelect id="meeting-date-filter" value={dateFilter.period} onChange={(event) => setDateFilter({ period: event.target.value, now: Date.now() })}>
             <option value="all">All dates</option>
             <option value="today">Today</option>
             <option value="week">Last 7 days</option>
             <option value="older">Older</option>
-          </select>
+          </AnimatedSelect>
         </div>
       </div>
 
@@ -66,7 +71,7 @@ export default function SavedMeetings({ controller }) {
       ) : meetingsLoadError ? (
         <div className="state-message state-message--error">
           <p role="alert">Could not load Meeting Sessions: {meetingsLoadError}</p>
-          <button className="button button--secondary" type="button" onClick={loadMeetings}>Try again</button>
+          <AnimatedButton className="button button--secondary" type="button" onClick={loadMeetings}>Try again</AnimatedButton>
         </div>
       ) : meetings.length === 0 ? (
         <div className="state-message state-message--empty">
@@ -90,17 +95,62 @@ export default function SavedMeetings({ controller }) {
 
             return (
               <li key={meeting.id}>
-                <article className="session-card" aria-labelledby={`session-title-${meeting.id}`}>
+                <AnimatedCard as="article" className="session-card" aria-labelledby={`session-title-${meeting.id}`}>
                   <header className="session-card__header">
                     <div className="session-card__identity">
-                      <h3 id={`session-title-${meeting.id}`}>Session {meeting.session_number}</h3>
+                      {editingTitleId === meeting.id ? (
+                        <form
+                          className="session-title-edit-form"
+                          onSubmit={(event) => {
+                            event.preventDefault()
+                            saveTitle(meeting.id)
+                          }}
+                        >
+                          <label htmlFor={`edit-title-${meeting.id}`} className="sr-only">Session title</label>
+                          <div className="session-title-edit-row">
+                            <input
+                              id={`edit-title-${meeting.id}`}
+                              className="session-title-input"
+                              type="text"
+                              value={editingTitle}
+                              onChange={(event) => setEditingTitle(event.target.value)}
+                              maxLength={200}
+                              placeholder="Session title"
+                              autoFocus
+                              disabled={isSavingTitle}
+                            />
+                            <AnimatedButton className="button button--primary button--small" type="submit" disabled={isSavingTitle}>
+                              {isSavingTitle ? 'Saving...' : 'Save'}
+                            </AnimatedButton>
+                            <AnimatedButton className="button button--secondary button--small" type="button" onClick={cancelEditingTitle} disabled={isSavingTitle}>
+                              Cancel
+                            </AnimatedButton>
+                          </div>
+                        </form>
+                      ) : (
+                        <div className="session-card__title-row">
+                          <h3 id={`session-title-${meeting.id}`}>{meeting.title || `Session ${meeting.session_number}`}</h3>
+                          <button
+                            type="button"
+                            className="session-rename-btn"
+                            onClick={() => startEditingTitle(meeting)}
+                            title="Rename session"
+                            aria-label={`Rename session ${meeting.title || meeting.session_number}`}
+                          >
+                            <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                            </svg>
+                            <span>Rename</span>
+                          </button>
+                        </div>
+                      )}
                       <time dateTime={meeting.created_at}>{new Date(meeting.created_at).toLocaleString()}</time>
                     </div>
                     <p className={`session-report-status${report ? ' is-ready' : ''}`}>
                       {isLoadingReports ? 'Checking report status' : report ? 'Report available' : 'Report not generated'}
                     </p>
                     <div className="session-card__actions">
-                      <button
+                      <AnimatedButton
                         className="button button--primary"
                         type="button"
                         onClick={() => generateReport(meeting.id)}
@@ -114,10 +164,18 @@ export default function SavedMeetings({ controller }) {
                             : report
                               ? 'Regenerate AI report'
                               : 'Generate AI report'}
-                      </button>
-                      <button className="button button--danger-quiet" type="button" onClick={() => deleteMeeting(meeting.id)}>
+                      </AnimatedButton>
+                      <AnimatedButton
+                        className="button button--secondary"
+                        type="button"
+                        onClick={() => startEditingTitle(meeting)}
+                        disabled={editingTitleId === meeting.id}
+                      >
+                        Rename session
+                      </AnimatedButton>
+                      <AnimatedButton className="button button--danger-quiet" type="button" onClick={() => deleteMeeting(meeting.id)}>
                         Delete session
-                      </button>
+                      </AnimatedButton>
                     </div>
                   </header>
 
@@ -140,21 +198,21 @@ export default function SavedMeetings({ controller }) {
                             rows="8"
                           />
                           <div className="session-detail-actions">
-                            <button className="button button--primary" type="button" onClick={() => saveTranscript(meeting.id)}>
+                            <AnimatedButton className="button button--primary" type="button" onClick={() => saveTranscript(meeting.id)}>
                               Save changes
-                            </button>
-                            <button className="button button--secondary" type="button" onClick={cancelEditing}>
+                            </AnimatedButton>
+                            <AnimatedButton className="button button--secondary" type="button" onClick={cancelEditing}>
                               Cancel
-                            </button>
+                            </AnimatedButton>
                           </div>
                         </div>
                       ) : (
                         <section className="session-transcript" aria-labelledby={`transcript-title-${meeting.id}`}>
                           <h4 id={`transcript-title-${meeting.id}`}>Original transcript</h4>
                           <p>{meeting.transcript}</p>
-                          <button className="button button--secondary" type="button" onClick={() => startEditing(meeting)}>
+                          <AnimatedButton className="button button--secondary" type="button" onClick={() => startEditing(meeting)}>
                             Edit transcript
-                          </button>
+                          </AnimatedButton>
                         </section>
                       )}
 
@@ -169,12 +227,12 @@ export default function SavedMeetings({ controller }) {
                               </p>
                             </div>
                             <div className="report-actions">
-                              <button className="button button--secondary" type="button" onClick={() => downloadReport(meeting, report)}>
+                              <AnimatedButton className="button button--secondary" type="button" onClick={() => downloadReport(meeting, report)}>
                                 Download report
-                              </button>
-                              <button className="button button--secondary" type="button" onClick={() => printReport(meeting, report)}>
+                              </AnimatedButton>
+                              <AnimatedButton className="button button--secondary" type="button" onClick={() => printReport(meeting, report)}>
                                 Print report
-                              </button>
+                              </AnimatedButton>
                             </div>
                           </div>
 
@@ -209,7 +267,7 @@ export default function SavedMeetings({ controller }) {
                       ) : null}
                     </div>
                   </details>
-                </article>
+                </AnimatedCard>
               </li>
             )
           })}

@@ -16,7 +16,7 @@ This document describes where to put code when extending Smart Meeting Assistant
 
 Run the API from `backend` with `uvicorn main:app`. `backend/main.py` remains the stable import path. `backend/app/main.py` creates the FastAPI app, configures middleware and validation handling, then includes the route modules.
 
-Each feature's HTTP endpoints belong in one module under `backend/app/api/`: `auth.py`, `health.py`, `meetings.py`, or `reports.py`. Keep request parsing and HTTP status decisions at the route boundary. Shared database, authentication, CSRF, and model resources live in `runtime.py` until a separate service or repository has a clear second caller.
+Each feature's HTTP endpoints belong in one module under `backend/app/api/`: `auth.py`, `health.py`, `meetings.py`, or `reports.py`. Keep request parsing and HTTP status decisions at the route boundary. Shared database, authentication, and CSRF helpers live in `runtime.py`; provider clients are created by the route handlers using backend configuration.
 
 Environment values are loaded from `backend/.env` by `config.py`. Keep credentials out of source files and commit only `.env.example` templates. Frontend build settings belong in `frontend/.env.local` or the hosting provider's frontend environment, not in the backend environment.
 
@@ -31,4 +31,3 @@ Expected errors should return a useful HTTP status and safe `detail`; request va
 - Keep audio conversion helpers independent from React components.
 - Update the relevant README, examples, tests, and scripts when moving or renaming a public import or API route.
 - Prefer the existing Python and JavaScript dependencies. Add a new dependency only when the standard library and current project patterns do not cover the need.
-

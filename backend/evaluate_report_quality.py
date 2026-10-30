@@ -1,4 +1,4 @@
-"""Run a grounded-report quality check against Ollama and an isolated test schema."""
+"""Run a grounded-report quality check against Groq and an isolated test schema."""
 
 import json
 import os
@@ -17,6 +17,8 @@ load_dotenv(Path(__file__).with_name(".env"))
 test_database_url = os.getenv("SMART_MEETING_TEST_DATABASE_URL")
 if not test_database_url:
     raise SystemExit("Set SMART_MEETING_TEST_DATABASE_URL to a dedicated PostgreSQL test database.")
+if not os.getenv("GROQ_API_KEY"):
+    raise SystemExit("Set GROQ_API_KEY in backend/.env before running the live report evaluation.")
 
 db_config = conninfo_to_dict(test_database_url)
 if "test" not in db_config.get("dbname", "").casefold():
@@ -37,7 +39,10 @@ cases_path = Path(__file__).parents[1] / "examples" / "report_evaluation_cases.j
 cases = json.loads(cases_path.read_text(encoding="utf-8"))
 
 try:
-    with patch.object(runtime, "DB_CONFIG", db_config):
+    with (
+        patch.object(runtime, "DB_CONFIG", db_config),
+        patch.object(runtime, "consume_rate_limit", return_value=True),
+    ):
         main.create_table()
         with psycopg.connect(**db_config) as connection:
             user_id = connection.execute(
@@ -82,7 +87,7 @@ try:
             main.delete_transcript(saved["id"], request, token, user)
             print(f"PASS {case['name']}")
 
-    print(f"Passed {len(cases)} report cases with Ollama {runtime.OLLAMA_MODEL}.")
+    print(f"Passed {len(cases)} report cases with Groq {runtime.GROQ_MODEL}.")
 finally:
     with psycopg.connect(test_database_url) as connection:
         connection.execute(

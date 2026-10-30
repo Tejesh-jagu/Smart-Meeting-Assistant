@@ -1,6 +1,9 @@
 import AudioPlayer from './AudioPlayer.jsx'
+import AnimatedButton from './ui/AnimatedButton.jsx'
 
 export default function RecordingPanel({
+  audioTitle = '',
+  setAudioTitle,
   audioInputRef,
   uploadAudio,
   isUploadingAudio,
@@ -26,6 +29,16 @@ export default function RecordingPanel({
         </div>
 
         <form onSubmit={uploadAudio}>
+          <label htmlFor="audio-title">Session title (optional)</label>
+          <input
+            id="audio-title"
+            type="text"
+            placeholder="e.g. Design Review, Team Interview (defaults to Session #)"
+            value={audioTitle}
+            onChange={(event) => setAudioTitle?.(event.target.value)}
+            maxLength={200}
+            disabled={isUploadingAudio}
+          />
           <label htmlFor="audio">Choose an audio file</label>
           <input
             ref={audioInputRef}
@@ -39,7 +52,9 @@ export default function RecordingPanel({
               selectAudioFile(event.target.files?.[0] || null)
             }}
           />
-          <p id="audio-file-help" className="field-help">Your recording is processed locally by the configured transcription service.</p>
+          <p id="audio-file-help" className="field-help">
+            Maximum file size: 200 MB. Files larger than 25 MB are split into chunks for transcription.
+          </p>
 
           {isRecording ? (
             <div className="recording-status">
@@ -53,14 +68,14 @@ export default function RecordingPanel({
                 </div>
               </div>
 
-              <button
+              <AnimatedButton
                 type="button"
                 onClick={stopRecording}
                 disabled={isUploadingAudio}
-                  className="button button--danger"
+                className="button button--danger"
               >
                 Stop recording
-              </button>
+              </AnimatedButton>
             </div>
           ) : (
             <div className="audio-selection">
@@ -75,7 +90,7 @@ export default function RecordingPanel({
                   />
                 </div>
               ) : (
-                <button
+                <AnimatedButton
                   type="button"
                   onClick={startRecording}
                   disabled={isUploadingAudio}
@@ -83,28 +98,28 @@ export default function RecordingPanel({
                 >
                   <span className="recording-start-button__icon" aria-hidden="true" />
                   Start recording
-                </button>
+                </AnimatedButton>
               )}
 
               {audioPreviewUrl && (
                 <div className="audio-actions">
-                  <button
+                  <AnimatedButton
                     type="button"
                     onClick={startRecording}
                     disabled={isUploadingAudio}
                     className="button button--secondary"
                   >
                     Record again
-                  </button>
+                  </AnimatedButton>
 
-                  <button
+                  <AnimatedButton
                     type="submit"
                     disabled={isUploadingAudio}
                     aria-busy={isUploadingAudio}
                     className="button button--primary"
                   >
                     {isUploadingAudio ? 'Transcribing audio...' : 'Transcribe audio'}
-                  </button>
+                  </AnimatedButton>
                 </div>
               )}
             </div>

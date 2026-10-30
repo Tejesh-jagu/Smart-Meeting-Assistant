@@ -5,8 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from uuid import uuid4
 from unittest.mock import MagicMock, patch
-from urllib.error import URLError
 
+from groq import APIError
 import psycopg
 from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict
@@ -17,6 +17,27 @@ with patch("psycopg.connect"):
     import main
 
 from app import runtime
+
+
+def create_verified_user(client, csrf_token, name, email, password):
+    headers = {
+        "Origin": main.FRONTEND_ORIGINS[0],
+        "X-CSRF-Token": csrf_token,
+    }
+    with (
+        patch.object(runtime, "OTP_HASH_SECRET", "integration-test-otp-secret-000000000000"),
+        patch.object(runtime, "verification_configured", return_value=True),
+        patch.object(runtime, "send_verification_email") as send_email,
+    ):
+        signup = client.post("/auth/register", json={"name": name, "email": email}, headers=headers)
+        if signup.status_code != 201:
+            return signup, None
+        verified = client.post(
+            "/auth/verify-email",
+            json={"email": email, "code": send_email.call_args.args[1], "password": password},
+            headers=headers,
+        )
+    return signup, verified
 
 
 class ReportEndpointTests(unittest.TestCase):
@@ -54,22 +75,22 @@ class ReportEndpointTests(unittest.TestCase):
         connection.__enter__.return_value = connection
         connection.execute.side_effect = [meeting_cursor, saved_cursor]
 
-        ollama_response = MagicMock()
-        ollama_response.__enter__.return_value = ollama_response
-        ollama_response.read.return_value = json.dumps({
-            "response": json.dumps({
-                "summary": "Thanks for joining.",
-                "decisions": ["We agreed to launch the pilot next month."],
-                "tasks": [
-                    "Priya will send the onboarding guide by Friday.",
-                    "The dashboard could show weekly attendance.",
-                ],
-            })
-        }).encode()
+        completion = MagicMock()
+        completion.choices[0].message.content = json.dumps({
+            "summary": "Thanks for joining.",
+            "decisions": ["We agreed to launch the pilot next month."],
+            "tasks": [
+                "Priya will send the onboarding guide by Friday.",
+                "The dashboard could show weekly attendance.",
+            ],
+        })
+        groq_client = MagicMock()
+        groq_client.chat.completions.create.return_value = completion
 
         with (
             patch.object(main.psycopg, "connect", return_value=connection),
-            patch.object(runtime, "urlopen", return_value=ollama_response),
+            patch.object(runtime, "GROQ_API_KEY", "test-groq-key"),
+            patch("app.api.reports.Groq", return_value=groq_client) as groq,
             patch.object(runtime, "consume_rate_limit", return_value=True),
         ):
             response = self.client.post("/transcripts/42/report", headers=self.headers)
@@ -79,11 +100,35 @@ class ReportEndpointTests(unittest.TestCase):
         self.assertEqual(result["summary"], "We agreed to launch the pilot next month.")
         self.assertEqual(result["decisions"], ["We agreed to launch the pilot next month."])
         self.assertEqual(result["tasks"], ["Priya will send the onboarding guide by Friday."])
-        self.assertEqual(result["generator"], f"Ollama {main.OLLAMA_MODEL}")
+        self.assertEqual(result["generator"], f"Groq {main.GROQ_MODEL}")
         self.assertEqual(result["generated_at"], "2026-10-17T00:00:00+00:00")
         self.assertEqual(connection.execute.call_count, 2)
+        groq.assert_called_once_with(api_key="test-groq-key")
+        groq_client.chat.completions.create.assert_called_once()
 
-    def test_ollama_connection_error_is_returned_as_actionable_api_error(self):
+    def test_groq_error_is_returned_as_api_error(self):
+        meeting_cursor = MagicMock()
+        meeting_cursor.fetchone.return_value = {"id": 43, "transcript": "The team met today."}
+        connection = MagicMock()
+        connection.__enter__.return_value = connection
+        connection.execute.return_value = meeting_cursor
+        groq_client = MagicMock()
+        groq_client.chat.completions.create.side_effect = APIError(
+            "offline", request=MagicMock(), body=None
+        )
+
+        with (
+            patch.object(main.psycopg, "connect", return_value=connection),
+            patch.object(runtime, "GROQ_API_KEY", "test-groq-key"),
+            patch("app.api.reports.Groq", return_value=groq_client),
+            patch.object(runtime, "consume_rate_limit", return_value=True),
+        ):
+            response = self.client.post("/transcripts/43/report", headers=self.headers)
+
+        self.assertEqual(response.status_code, 502)
+        self.assertIn("Groq could not generate the report", response.json()["detail"])
+
+    def test_report_requires_groq_api_key_before_consuming_rate_limit(self):
         meeting_cursor = MagicMock()
         meeting_cursor.fetchone.return_value = {"id": 43, "transcript": "The team met today."}
         connection = MagicMock()
@@ -92,13 +137,38 @@ class ReportEndpointTests(unittest.TestCase):
 
         with (
             patch.object(main.psycopg, "connect", return_value=connection),
-            patch.object(runtime, "urlopen", side_effect=URLError("offline")),
+            patch.object(runtime, "GROQ_API_KEY", ""),
+            patch.object(runtime, "consume_rate_limit") as consume_limit,
+            patch("app.api.reports.Groq") as groq,
+        ):
+            response = self.client.post("/transcripts/43/report", headers=self.headers)
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "GROQ_API_KEY is not configured.")
+        consume_limit.assert_not_called()
+        groq.assert_not_called()
+
+    def test_invalid_groq_report_response_returns_api_error(self):
+        meeting_cursor = MagicMock()
+        meeting_cursor.fetchone.return_value = {"id": 43, "transcript": "The team met today."}
+        connection = MagicMock()
+        connection.__enter__.return_value = connection
+        connection.execute.return_value = meeting_cursor
+        completion = MagicMock()
+        completion.choices[0].message.content = "not valid JSON"
+        groq_client = MagicMock()
+        groq_client.chat.completions.create.return_value = completion
+
+        with (
+            patch.object(main.psycopg, "connect", return_value=connection),
+            patch.object(runtime, "GROQ_API_KEY", "test-groq-key"),
+            patch("app.api.reports.Groq", return_value=groq_client),
             patch.object(runtime, "consume_rate_limit", return_value=True),
         ):
             response = self.client.post("/transcripts/43/report", headers=self.headers)
 
         self.assertEqual(response.status_code, 502)
-        self.assertIn("Could not connect to Ollama", response.json()["detail"])
+        self.assertEqual(response.json()["detail"], "Groq returned an invalid report response.")
 
     def test_upload_rejects_unsupported_file_extension(self):
         response = self.client.post(
@@ -129,14 +199,17 @@ class ReportEndpointTests(unittest.TestCase):
     def test_upload_saves_the_transcript_with_its_session_number(self):
         connection = MagicMock()
         connection.__enter__.return_value = connection
-        model = MagicMock()
-        model.transcribe.return_value = ([MagicMock(text="The team will share the agenda.")], None)
+        groq_client = MagicMock()
+        groq_client.audio.transcriptions.create.return_value.text = (
+            "The team will share the agenda."
+        )
 
         with (
-            patch.object(runtime, "get_whisper_model", return_value=model),
+            patch.object(runtime, "GROQ_API_KEY", "test-groq-key"),
+            patch("app.api.meetings.Groq", return_value=groq_client) as groq,
             patch.object(main.psycopg, "connect", return_value=connection),
             patch.object(runtime, "save_meeting", return_value=(89, 5)) as save_meeting,
-            patch.object(runtime, "consume_rate_limit", return_value=True),
+            patch.object(runtime, "consume_rate_limit", return_value=False) as consume_limit,
         ):
             response = self.client.post(
                 "/transcripts/upload",
@@ -148,14 +221,32 @@ class ReportEndpointTests(unittest.TestCase):
         self.assertEqual(response.json()["session_number"], 5)
         self.assertEqual(response.json()["transcript"], "The team will share the agenda.")
         save_meeting.assert_called_once_with(connection, 7, "The team will share the agenda.")
+        consume_limit.assert_not_called()
+        groq.assert_called_once_with(api_key="test-groq-key")
+        self.assertEqual(
+            groq_client.audio.transcriptions.create.call_args.kwargs["model"],
+            "whisper-large-v3",
+        )
+
+    def test_upload_requires_groq_api_key(self):
+        with patch.object(runtime, "GROQ_API_KEY", ""):
+            response = self.client.post(
+                "/transcripts/upload",
+                files={"file": ("meeting.wav", b"audio bytes", "audio/wav")},
+                headers=self.headers,
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "GROQ_API_KEY is not configured.")
 
     def test_upload_enforces_size_limit(self):
+        self.assertEqual(runtime.MAX_AUDIO_UPLOAD_BYTES, 200 * 1024 * 1024)
         connection = MagicMock()
         connection.__enter__.return_value = connection
         with (
             patch.object(runtime, "MAX_AUDIO_UPLOAD_BYTES", 3),
+            patch.object(runtime, "GROQ_API_KEY", "test-groq-key"),
             patch.object(main.psycopg, "connect", return_value=connection),
-            patch.object(runtime, "consume_rate_limit", return_value=True),
         ):
             response = self.client.post(
                 "/transcripts/upload",
@@ -165,13 +256,31 @@ class ReportEndpointTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 413)
 
-    def test_audio_transcription_rate_limit_rejects_before_loading_whisper(self):
+    def test_large_upload_is_split_and_transcribed_in_order(self):
         connection = MagicMock()
         connection.__enter__.return_value = connection
+        groq_client = MagicMock()
+        groq_client.audio.transcriptions.create.side_effect = [
+            MagicMock(text="First section."),
+            MagicMock(text="Second section."),
+        ]
+
+        def create_chunks(command, **_kwargs):
+            output_pattern = command[-1]
+            chunk_directory = os.path.dirname(output_pattern)
+            for index in range(2):
+                chunk_path = os.path.join(chunk_directory, f"chunk-{index:03d}.flac")
+                with open(chunk_path, "wb") as chunk:
+                    chunk.write(b"chunk")
+
         with (
+            patch.object(runtime, "MAX_GROQ_AUDIO_UPLOAD_BYTES", 10),
+            patch.object(runtime, "GROQ_API_KEY", "test-groq-key"),
+            patch("app.api.meetings.imageio_ffmpeg.get_ffmpeg_exe", return_value="ffmpeg"),
+            patch("app.api.meetings.subprocess.run", side_effect=create_chunks) as run_ffmpeg,
+            patch("app.api.meetings.Groq", return_value=groq_client),
             patch.object(main.psycopg, "connect", return_value=connection),
-            patch.object(runtime, "consume_rate_limit", return_value=False),
-            patch.object(runtime, "get_whisper_model") as get_model,
+            patch.object(runtime, "save_meeting", return_value=(90, 6)),
         ):
             response = self.client.post(
                 "/transcripts/upload",
@@ -179,10 +288,15 @@ class ReportEndpointTests(unittest.TestCase):
                 headers=self.headers,
             )
 
-        self.assertEqual(response.status_code, 429)
-        get_model.assert_not_called()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["transcript"],
+            "First section. Second section.",
+        )
+        run_ffmpeg.assert_called_once()
+        self.assertEqual(groq_client.audio.transcriptions.create.call_count, 2)
 
-    def test_report_generation_rate_limit_rejects_before_calling_ollama(self):
+    def test_report_generation_rate_limit_rejects_before_calling_groq(self):
         meeting_cursor = MagicMock()
         meeting_cursor.fetchone.return_value = {"id": 44, "transcript": "The team met today."}
         connection = MagicMock()
@@ -190,13 +304,14 @@ class ReportEndpointTests(unittest.TestCase):
         connection.execute.return_value = meeting_cursor
         with (
             patch.object(main.psycopg, "connect", return_value=connection),
+            patch.object(runtime, "GROQ_API_KEY", "test-groq-key"),
             patch.object(runtime, "consume_rate_limit", return_value=False),
-            patch.object(runtime, "urlopen") as urlopen,
+            patch("app.api.reports.Groq") as groq,
         ):
             response = self.client.post("/transcripts/44/report", headers=self.headers)
 
         self.assertEqual(response.status_code, 429)
-        urlopen.assert_not_called()
+        groq.assert_not_called()
 
     def test_transcript_endpoint_rejects_blank_or_oversized_text(self):
         with patch.object(main.psycopg, "connect") as connect:
@@ -213,23 +328,31 @@ class ReportEndpointTests(unittest.TestCase):
         self.assertEqual(long_response.status_code, 422)
         connect.assert_not_called()
 
-    def test_health_endpoint_checks_database_and_configured_model(self):
+    def test_health_endpoint_checks_database_and_groq_configuration(self):
         connection = MagicMock()
         connection.__enter__.return_value = connection
-        ollama_response = MagicMock()
-        ollama_response.__enter__.return_value = ollama_response
-        ollama_response.read.return_value = json.dumps({
-            "models": [{"name": main.OLLAMA_MODEL}],
-        }).encode()
 
         with (
             patch.object(main.psycopg, "connect", return_value=connection),
-            patch.object(runtime, "urlopen", return_value=ollama_response),
+            patch.object(runtime, "GROQ_API_KEY", "test-groq-key"),
         ):
             response = self.client.get("/health")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["status"], "ok")
+        self.assertEqual(response.json()["groq"], "configured")
+
+    def test_health_endpoint_fails_when_groq_api_key_is_missing(self):
+        connection = MagicMock()
+        connection.__enter__.return_value = connection
+
+        with (
+            patch.object(main.psycopg, "connect", return_value=connection),
+            patch.object(runtime, "GROQ_API_KEY", ""),
+        ):
+            response = self.client.get("/health")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["detail"], "GROQ_API_KEY is not configured.")
 
     def test_health_endpoint_fails_when_database_is_unavailable(self):
         with patch.object(main.psycopg, "connect", side_effect=OSError("offline")):
@@ -274,24 +397,20 @@ class PostgresReportIntegrationTests(unittest.TestCase):
         self.client = TestClient(main.app)
         csrf_response = self.client.get("/auth/csrf")
         self.assertEqual(csrf_response.status_code, 200)
-        signup_response = self.client.post(
-            "/auth/register",
-            json={
-                "name": "Integration User",
-                "email": f"{uuid4().hex}@example.com",
-                "password": "test-password-123",
-            },
-            headers={
-                "Origin": main.FRONTEND_ORIGINS[0],
-                "X-CSRF-Token": csrf_response.json()["csrf_token"],
-            },
+        signup_response, verified_response = create_verified_user(
+            self.client,
+            csrf_response.json()["csrf_token"],
+            "Integration User",
+            f"{uuid4().hex}@example.com",
+            "test-password-123",
         )
         self.assertEqual(signup_response.status_code, 201, signup_response.text)
+        self.assertEqual(verified_response.status_code, 200, verified_response.text)
         self.headers = {
             "Origin": main.FRONTEND_ORIGINS[0],
-            "X-CSRF-Token": signup_response.json()["csrf_token"],
+            "X-CSRF-Token": verified_response.json()["csrf_token"],
         }
-        self.user_id = signup_response.json()["user"]["id"]
+        self.user_id = verified_response.json()["user"]["id"]
 
     def test_session_numbers_are_sequential_and_never_reused_after_deletion(self):
         first = self.client.post(
@@ -410,19 +529,15 @@ class PostgresReportIntegrationTests(unittest.TestCase):
                 client = TestClient(main.app)
                 try:
                     csrf = client.get("/auth/csrf").json()["csrf_token"]
-                    signup = client.post(
-                        "/auth/register",
-                        json={
-                            "name": "First Account",
-                            "email": f"{uuid4().hex}@example.com",
-                            "password": "test-password-123",
-                        },
-                        headers={
-                            "Origin": main.FRONTEND_ORIGINS[0],
-                            "X-CSRF-Token": csrf,
-                        },
+                    signup, verified = create_verified_user(
+                        client,
+                        csrf,
+                        "First Account",
+                        f"{uuid4().hex}@example.com",
+                        "test-password-123",
                     )
                     self.assertEqual(signup.status_code, 201, signup.text)
+                    self.assertEqual(verified.status_code, 200, verified.text)
                     listed = client.get("/transcripts").json()
                     self.assertEqual(
                         [(row["session_number"], row["transcript"]) for row in reversed(listed)],
@@ -441,18 +556,18 @@ class PostgresReportIntegrationTests(unittest.TestCase):
         other_client = TestClient(main.app)
         self.addCleanup(other_client.close)
         csrf = other_client.get("/auth/csrf").json()["csrf_token"]
-        signup = other_client.post(
-            "/auth/register",
-            json={
-                "name": "Another User",
-                "email": f"{uuid4().hex}@example.com",
-                "password": "test-password-123",
-            },
-            headers={"Origin": main.FRONTEND_ORIGINS[0], "X-CSRF-Token": csrf},
+        signup, verified = create_verified_user(
+            other_client,
+            csrf,
+            "Another User",
+            f"{uuid4().hex}@example.com",
+            "test-password-123",
         )
+        self.assertEqual(signup.status_code, 201, signup.text)
+        self.assertEqual(verified.status_code, 200, verified.text)
         other_headers = {
             "Origin": main.FRONTEND_ORIGINS[0],
-            "X-CSRF-Token": signup.json()["csrf_token"],
+            "X-CSRF-Token": verified.json()["csrf_token"],
         }
 
         self.assertEqual(other_client.get("/transcripts").json(), [])
@@ -475,7 +590,7 @@ class PostgresReportIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(len(self.client.get("/transcripts").json()), 1)
 
-    def test_report_is_saved_and_listed_from_postgres_with_ollama_mocked(self):
+    def test_report_is_saved_and_listed_from_postgres_with_groq_mocked(self):
         transcript = (
             "We agreed to launch the customer pilot next month. "
             "Priya will send the onboarding guide by Friday."
@@ -486,17 +601,19 @@ class PostgresReportIntegrationTests(unittest.TestCase):
         self.assertEqual(save_response.status_code, 200)
         meeting_id = save_response.json()["id"]
 
-        ollama_response = MagicMock()
-        ollama_response.__enter__.return_value = ollama_response
-        ollama_response.read.return_value = json.dumps({
-            "response": json.dumps({
-                "summary": "The pilot launches in one month.",
-                "decisions": ["We agreed to launch the customer pilot next month."],
-                "tasks": ["Priya will send the onboarding guide by Friday."],
-            })
-        }).encode()
+        completion = MagicMock()
+        completion.choices[0].message.content = json.dumps({
+            "summary": "The pilot launches in one month.",
+            "decisions": ["We agreed to launch the customer pilot next month."],
+            "tasks": ["Priya will send the onboarding guide by Friday."],
+        })
+        groq_client = MagicMock()
+        groq_client.chat.completions.create.return_value = completion
 
-        with patch.object(runtime, "urlopen", return_value=ollama_response):
+        with (
+            patch.object(runtime, "GROQ_API_KEY", "test-groq-key"),
+            patch("app.api.reports.Groq", return_value=groq_client),
+        ):
             report_response = self.client.post(
                 f"/transcripts/{meeting_id}/report", headers=self.headers
             )
@@ -513,6 +630,26 @@ class PostgresReportIntegrationTests(unittest.TestCase):
             listed_reports.json()[0]["tasks"],
             ["Priya will send the onboarding guide by Friday."],
         )
+
+    def test_saving_transcript_with_custom_title_and_renaming(self):
+        saved = self.client.post(
+            "/transcripts",
+            json={"transcript": "Discussion on Q4 targets.", "title": "Q4 Strategy Meeting"},
+            headers=self.headers,
+        ).json()
+        self.assertEqual(saved["title"], "Q4 Strategy Meeting")
+
+        renamed = self.client.patch(
+            f"/transcripts/{saved['id']}/title",
+            json={"title": "Q4 Final Strategy & Goals"},
+            headers=self.headers,
+        )
+        self.assertEqual(renamed.status_code, 200)
+        self.assertEqual(renamed.json()["title"], "Q4 Final Strategy & Goals")
+
+        listed = self.client.get("/transcripts", headers=self.headers).json()
+        matching = next(m for m in listed if m["id"] == saved["id"])
+        self.assertEqual(matching["title"], "Q4 Final Strategy & Goals")
 
 
 if __name__ == "__main__":
