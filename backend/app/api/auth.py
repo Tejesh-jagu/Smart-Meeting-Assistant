@@ -1,3 +1,5 @@
+from urllib import response
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 
 from .. import runtime
@@ -9,14 +11,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def get_csrf_token(response: Response):
     token = runtime.secrets.token_urlsafe(32)
     response.set_cookie(
-        runtime.CSRF_COOKIE_NAME,
-        token,
-        max_age=60 * 60,
-        httponly=True,
-        secure=runtime.SESSION_COOKIE_SECURE,
-        samesite="lax",
-        path="/",
-    )
+    runtime.CSRF_COOKIE_NAME,
+    token,
+    max_age=60 * 60,
+    httponly=True,
+    secure=True,
+    samesite="none",
+    path="/",
+)
     response.headers["Cache-Control"] = "no-store"
     return {"csrf_token": token}
 
@@ -372,14 +374,14 @@ def login(request: Request, response: Response, payload: runtime.LoginRequest, x
 @router.get("/me")
 def current_user(response: Response, user: dict = Depends(runtime.get_current_user)):
     response.set_cookie(
-        runtime.CSRF_COOKIE_NAME,
-        user["csrf_token"],
-        max_age=runtime.SESSION_MAX_AGE,
-        httponly=True,
-        secure=runtime.SESSION_COOKIE_SECURE,
-        samesite="lax",
-        path="/",
-    )
+    runtime.CSRF_COOKIE_NAME,
+    user["csrf_token"],
+    max_age=runtime.SESSION_MAX_AGE,
+    httponly=True,
+    secure=True,
+    samesite="none",
+    path="/",
+)
     response.headers["Cache-Control"] = "no-store"
     return {
         "user": {"id": user["id"], "name": user["name"], "email": user["email"]},
@@ -402,8 +404,8 @@ def logout(
             "DELETE FROM app_sessions WHERE token_hash = %s AND user_id = %s",
             (token_hash, user["id"]),
         )
-    response.delete_cookie(runtime.SESSION_COOKIE_NAME, path="/", secure=runtime.SESSION_COOKIE_SECURE, httponly=True, samesite="lax")
-    response.delete_cookie(runtime.CSRF_COOKIE_NAME, path="/", secure=runtime.SESSION_COOKIE_SECURE, httponly=True, samesite="lax")
+    response.delete_cookie(runtime.SESSION_COOKIE_NAME, path="/", secure=True, httponly=True, samesite="none")
+    response.delete_cookie(runtime.CSRF_COOKIE_NAME, path="/", secure=True, httponly=True, samesite="none")
     response.headers["Cache-Control"] = "no-store"
     return {"message": "Signed out."}
 
