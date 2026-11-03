@@ -30,12 +30,8 @@ SESSION_COOKIE_NAME = "sma_session"
 CSRF_COOKIE_NAME = "sma_csrf"
 SESSION_MAX_AGE = 60 * 60 * 24 * 7
 OTP_HASH_SECRET = os.getenv("OTP_HASH_SECRET", "")
-SMTP_HOST = os.getenv("SMTP_HOST", "")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "")
-SMTP_USE_SSL = os.getenv("SMTP_USE_SSL", "false").casefold() == "true"
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", os.getenv("SMTP_FROM_EMAIL", ""))
 FRONTEND_ORIGINS = list(dict.fromkeys(
     origin.strip().rstrip("/")
     for origin in (

@@ -1,14 +1,15 @@
 import hashlib
 import hmac
 import json
+import logging
 import re
 import secrets
 import smtplib
-import ssl
 import tempfile
 from typing import Optional
-from email.message import EmailMessage
 from pathlib import Path
+from urllib import error as urlerror
+from urllib import request as urlrequest
 
 import psycopg
 from argon2 import PasswordHasher
@@ -32,12 +33,8 @@ from .config import (
     GROQ_API_KEY,
     GROQ_MODEL,
     OTP_HASH_SECRET,
-    SMTP_FROM_EMAIL,
-    SMTP_HOST,
-    SMTP_PASSWORD,
-    SMTP_PORT,
-    SMTP_USE_SSL,
-    SMTP_USERNAME,
+    BREVO_API_KEY,
+    BREVO_SENDER_EMAIL,
     SIGNUPS_PER_HOUR,
     SESSION_COOKIE_NAME,
     SESSION_COOKIE_SECURE,
@@ -46,6 +43,7 @@ from .config import (
 
 
 password_hasher = PasswordHasher()
+logger = logging.getLogger(__name__)
 
 
 class TranscriptRequest(BaseModel):
@@ -382,10 +380,8 @@ def create_session(connection, user_id):
 def verification_configured():
     return bool(
         len(OTP_HASH_SECRET) >= 32
-        and SMTP_HOST
-        and 0 < SMTP_PORT < 65536
-        and re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", SMTP_FROM_EMAIL)
-        and bool(SMTP_USERNAME) == bool(SMTP_PASSWORD)
+        and BREVO_API_KEY
+        and re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", BREVO_SENDER_EMAIL)
     )
 
 
@@ -420,27 +416,37 @@ def send_password_reset_email(email, code):
 
 
 def send_auth_code_email(email, code, subject, purpose):
-    message = EmailMessage()
-    message["Subject"] = subject
-    message["From"] = SMTP_FROM_EMAIL
-    message["To"] = email
-    message.set_content(
-        f"Your Smart Meeting Assistant {purpose} code is {code}. "
-        "It expires in 10 minutes. If you did not request this, ignore this email."
+    payload = {
+        "sender": {"email": BREVO_SENDER_EMAIL},
+        "to": [{"email": email}],
+        "subject": subject,
+        "textContent": (
+            f"Your Smart Meeting Assistant {purpose} code is {code}. "
+            "It expires in 10 minutes. If you did not request this, ignore this email."
+        ),
+    }
+    request = urlrequest.Request(
+        "https://api.brevo.com/v3/smtp/email",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "accept": "application/json",
+            "api-key": BREVO_API_KEY,
+            "content-type": "application/json",
+        },
+        method="POST",
     )
-
-    if SMTP_USE_SSL:
-        smtp = smtplib.SMTP_SSL(
-            SMTP_HOST, SMTP_PORT, timeout=10, context=ssl.create_default_context()
-        )
-    else:
-        smtp = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10)
-    with smtp:
-        if not SMTP_USE_SSL:
-            smtp.starttls(context=ssl.create_default_context())
-        if SMTP_USERNAME:
-            smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
-        smtp.send_message(message)
+    try:
+        with urlrequest.urlopen(request, timeout=15):
+            return
+    except urlerror.HTTPError as error:
+        logger.error("Brevo email API returned HTTP %s.", error.code)
+        raise OSError(f"Brevo email API returned HTTP {error.code}.") from error
+    except urlerror.URLError as error:
+        logger.error("Could not reach the Brevo email API: %s", error.reason)
+        raise OSError("Could not reach the Brevo email API.") from error
+    except OSError as error:
+        logger.error("Brevo email API request failed: %s", error)
+        raise
 
 
 def get_current_user(request: Request):
