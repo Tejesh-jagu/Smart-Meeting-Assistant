@@ -1,13 +1,4 @@
-const localApiUrl = typeof window === 'undefined'
-  ? 'http://localhost:8000'
-  : `${window.location.protocol}//${window.location.hostname}:${import.meta.env.VITE_API_PORT || 8000}`
-
-export const API_URL = (
-  import.meta.env.DEV && !import.meta.env.VITE_API_URL
-    ? ''
-    : import.meta.env.VITE_API_URL || localApiUrl
-).replace(/\/$/, '')
-
+export const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 
 export function responseMessage(payload, fallback) {
   if (typeof payload?.detail === 'string') return payload.detail
